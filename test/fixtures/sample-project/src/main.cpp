@@ -3,6 +3,8 @@
 
 #include "core/engine.h"
 #include "game/player.h"
+#include "graphics/renderer.h"
+#include "ui/renderer.h"
 
 using namespace game_engine;
 

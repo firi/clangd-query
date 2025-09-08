@@ -18,11 +18,12 @@ func Hierarchy(client *lsp.ClangdClient, className string, limit int, log logger
 		return "", err
 	}
 
-	// Filter to find the exact class (not methods or other symbols)
+	// Filter to find classes/structs/interfaces (not methods or other symbols)
+	// We don't filter by name because the query might be qualified (e.g., "namespace::Class")
+	// but the symbol name might be unqualified (e.g., "Class")
 	var classSymbols []lsp.WorkspaceSymbol
 	for _, sym := range symbols {
-		if sym.Name == className &&
-			(sym.Kind == lsp.SymbolKindClass || sym.Kind == lsp.SymbolKindStruct || sym.Kind == lsp.SymbolKindInterface) {
+		if sym.Kind == lsp.SymbolKindClass || sym.Kind == lsp.SymbolKindStruct || sym.Kind == lsp.SymbolKindInterface {
 			classSymbols = append(classSymbols, sym)
 		}
 	}
@@ -31,18 +32,14 @@ func Hierarchy(client *lsp.ClangdClient, className string, limit int, log logger
 		return fmt.Sprintf("No class named '%s' found in the codebase.", className), nil
 	}
 
-	if len(classSymbols) > 1 {
-		// Multiple classes with same name, show all locations
-		var locations []string
-		for _, sym := range classSymbols {
-			locationStr := formatLocationSimple(client, sym.Location.URI, sym.Location.Range.Start.Line)
-			locations = append(locations, fmt.Sprintf("  - %s", locationStr))
-		}
-		return fmt.Sprintf("Multiple classes named '%s' found:\n%s\n\nPlease use a more specific query.",
-			className, strings.Join(locations, "\n")), nil
-	}
-
+	// Use the best match - symbols are already sorted by relevance from clangd
 	classSymbol := classSymbols[0]
+
+	// Prepare a message about multiple matches if they exist
+	multipleMatchesInfo := ""
+	if len(classSymbols) > 1 {
+		multipleMatchesInfo = fmt.Sprintf(" (%d matches total, showing most relevant)", len(classSymbols))
+	}
 	classLocation := classSymbol.Location
 
 	// Prepare type hierarchy at this location
@@ -67,7 +64,19 @@ func Hierarchy(client *lsp.ClangdClient, className string, limit int, log logger
 		return "", err
 	}
 
-	return formatHierarchyTree(tree, client), nil
+	// Format the output with the multiple matches info
+	result := ""
+	if multipleMatchesInfo != "" {
+		// Get the full name for display
+		fullName := rootItem.Name
+		if rootItem.Detail != "" {
+			fullName = rootItem.Detail
+		}
+		result = fmt.Sprintf("Found class '%s'%s\n\n", fullName, multipleMatchesInfo)
+	}
+
+	result += formatHierarchyTree(tree, client)
+	return result, nil
 }
 
 // buildCompleteHierarchy builds the complete hierarchy from a root item

@@ -38,4 +38,24 @@ func TestHierarchyCommand(t *testing.T) {
 		tc.AssertContains(result.Stdout, "Updatable - include/core/interfaces.h")
 		tc.AssertContains(result.Stdout, "GameObject")
 	})
+
+	// Test: multiple matches should show the most relevant one
+	t.Run("Hierarchy with multiple class matches", func(t *testing.T) {
+		result := tc.RunCommand("hierarchy", "Renderer")
+		tc.AssertExitCode(result, 0)
+		// Should indicate there are multiple matches (now finds 3: ui::Renderer, graphics::Renderer, MeshRenderer)
+		tc.AssertContains(result.Stdout, "matches total, showing most relevant)")
+		// Should show the hierarchy of the best match
+		tc.AssertContains(result.Stdout, "Renderer - include/")
+	})
+
+	// Test: hierarchy with fully qualified name
+	t.Run("Hierarchy with namespace-qualified name", func(t *testing.T) {
+		result := tc.RunCommand("hierarchy", "game_engine::GameObject")
+		tc.AssertExitCode(result, 0)
+		// Should find the class even with namespace qualification
+		tc.AssertContains(result.Stdout, "GameObject - include/core/game_object.h")
+		tc.AssertContains(result.Stdout, "Inherits from:")
+		tc.AssertContains(result.Stdout, "└── Character")
+	})
 }
